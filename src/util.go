@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,7 +26,7 @@ func init() {
 }
 
 type cell struct {
-	c	  rune
+	c     rune
 	style tcell.Style
 }
 
@@ -200,7 +201,7 @@ func newTcellColor(s string) (tcell.Color, error) {
 
 func readResource(typ, name string) []byte {
 	if name == "-" {
-		b, err := ioutil.ReadAll(os.Stdin)
+		b, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			panic(err)
 		}
@@ -208,15 +209,20 @@ func readResource(typ, name string) []byte {
 		return b
 	}
 
-	if b, err := ioutil.ReadFile(name); err == nil {
+	if b, err := os.ReadFile(name); err == nil {
 		return b
 	}
 
 	for _, d := range CONFIG_DIRS {
-		if b, err := ioutil.ReadFile(filepath.Join(d, typ, name)); err == nil {
+		if b, err := os.ReadFile(filepath.Join(d, typ, name)); err == nil {
 			return b
 		}
 	}
 
 	return readPackedFile(filepath.Join(typ, name))
+}
+
+func checkNetworkConnectivity() bool {
+	_, err := http.Get("http://www.google.com")
+	return err == nil
 }

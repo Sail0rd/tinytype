@@ -338,8 +338,14 @@ func main() {
 	case quoteFile == "":
 		testFn = getQuoteTest(n)
 	case randomWord:
+		if !checkNetworkConnectivity() {
+			die("this mode require network connectivity, use another mode or check your connection and try again.")
+		}
 		testFn = getWordTest(n)
 	case randomQuote:
+		if !checkNetworkConnectivity() {
+			die("this mode require network connectivity, use another mode or check your connection and try again.")
+		}
 		testFn = generateQuoteTest(quoteFile)
 	case !isatty.IsTerminal(os.Stdin.Fd()):
 		b, err := io.ReadAll(os.Stdin)

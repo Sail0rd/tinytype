@@ -35,6 +35,9 @@ func generateQuoteTest(name string) func() []segment {
 
 // getQuote returns a random quote and its author from the API
 func getQuoteTest(length int) func() []segment {
+	if length > 430 {
+		length = 430
+	}
 	req := quoteUrl + "?minLength=" + strconv.Itoa(length)
 	resp, err := http.Get(req)
 	if err != nil {
