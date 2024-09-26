@@ -1,10 +1,13 @@
 package main
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 )
 
+// generateTestFromFile returns a function that reads a file and returns its
+// paragraphs as segments. The function keeps track of the last paragraph read
+// using a state database.
 func generateTestFromFile(path string, startParagraph int) func() []segment {
 	var paragraphs []string
 	var db map[string]int
@@ -25,7 +28,7 @@ func generateTestFromFile(path string, startParagraph int) func() []segment {
 
 	idx := db[path] - 1
 
-	if b, err := ioutil.ReadFile(path); err != nil {
+	if b, err := os.ReadFile(path); err != nil {
 		die("Failed to read %s.", path)
 	} else {
 		paragraphs = getParagraphs(string(b))

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -10,6 +9,7 @@ import (
 var FILE_STATE_DB string
 var MISTAKE_DB string
 
+// init initializes the state database paths.
 func init() {
 	var ok bool
 	var data string
@@ -31,14 +31,15 @@ func init() {
 	MISTAKE_DB = filepath.Join(data, ".errors")
 }
 
+// Utility function to write/get json values to/from a file
 func readValue(path string, o interface{}) error {
-	b, err := ioutil.ReadFile(path)
+	content, err := os.ReadFile(path)
 
 	if err != nil {
 		return err
 	}
 
-	return json.Unmarshal(b, o)
+	return json.Unmarshal(content, o)
 }
 
 func writeValue(path string, o interface{}) {
@@ -47,7 +48,7 @@ func writeValue(path string, o interface{}) {
 		panic(err)
 	}
 
-	err = ioutil.WriteFile(path, b, 0600)
+	err = os.WriteFile(path, b, 0600)
 	if err != nil {
 		panic(err)
 	}

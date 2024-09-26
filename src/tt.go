@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -113,7 +113,7 @@ func showReport(scr tcell.Screen, cpm, wpm int, accuracy float64, attribution st
 		if key, ok := scr.PollEvent().(*tcell.EventKey); ok && key.Key() == tcell.KeyEscape {
 			return
 		} else if ok && key.Key() == tcell.KeyCtrlC {
-			exit(1)
+			exit(0)
 		}
 	}
 }
@@ -171,6 +171,8 @@ Modes
                         have the following form:
 
                         [{"text": "foo", attribution: "bar"}]
+	-randomquote        Fetch a random quote from the web and start a test.
+	-randomword         Fetch a random word from the web and start a test.
 
 Word Mode
     -n GROUPSZ          Sets the number of words which constitute a group.
@@ -181,7 +183,7 @@ File Mode
                         reset progress on a given file.
 Aesthetics
     -showwpm            Display WPM whilst typing.
-    -theme THEMEFILE    The theme to use. 
+    -theme THEMEFILE    The theme to use.
     -w                  The maximum line length in characters. This option is 
     -notheme            Attempt to use the default terminal theme. 
                         This may produce odd results depending 
@@ -248,6 +250,8 @@ func main() {
 	var listFlag string
 	var wordFile string
 	var quoteFile string
+	var randomQuote bool
+	var randomWord bool
 
 	var themeName string
 	var showWpm bool
@@ -269,6 +273,8 @@ func main() {
 
 	flag.StringVar(&wordFile, "words", "", "")
 	flag.StringVar(&quoteFile, "quotes", "", "")
+	flag.BoolVar(&randomQuote, "randomquote", false, "")
+	flag.BoolVar(&randomWord, "randomword", false, "")
 
 	flag.BoolVar(&showWpm, "showwpm", false, "")
 	flag.BoolVar(&noSkip, "noskip", false, "")
@@ -329,10 +335,14 @@ func main() {
 	switch {
 	case wordFile != "":
 		testFn = generateWordTest(wordFile, n, g)
-	case quoteFile != "":
+	case quoteFile == "":
+		testFn = getQuoteTest(n)
+	case randomWord:
+		testFn = getWordTest(n)
+	case randomQuote:
 		testFn = generateQuoteTest(quoteFile)
 	case !isatty.IsTerminal(os.Stdin.Fd()):
-		b, err := ioutil.ReadAll(os.Stdin)
+		b, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			panic(err)
 		}
@@ -383,7 +393,7 @@ func main() {
 	typer.ShowWpm = showWpm
 
 	if timeout != -1 {
-		timeout *= 1E9
+		timeout *= 1e9
 	}
 
 	var tests [][]segment
@@ -415,7 +425,7 @@ func main() {
 				idx--
 			}
 		case TyperComplete:
-			cpm := int(float64(ncorrect) / (float64(t) / 60E9))
+			cpm := int(float64(ncorrect) / (float64(t) / 60e9))
 			wpm := cpm / 5
 			accuracy := float64(ncorrect) / float64(nerrs+ncorrect) * 100
 
