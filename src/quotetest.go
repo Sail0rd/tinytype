@@ -5,7 +5,9 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
+	"time"
 )
 
 const quoteUrl string = "http://api.quotable.io/random"
@@ -15,26 +17,85 @@ type QuoteResponse struct {
 	Author  string `json:"author"`
 }
 
-func generateQuoteTest(name string) func() []segment {
-	var quotes []segment
+type MonkeytypeQuote struct {
+	Text   string `json:"text"`
+	Source string `json:"source"`
+	Length int    `json:"length"`
+}
 
-	if b := readResource("quotes", name); b == nil {
-		die("%s does not appear to be a valid quote file. See '-list quotes' for a list of builtin quotes.", name)
-	} else {
-		err := json.Unmarshal(b, &quotes)
+func generateQuoteTest(name string, lengthThreshold int) func() []segment {
+	rand.Seed(time.Now().UnixNano())
+
+	file, err := os.Open(name)
+	if err != nil {
+		die("Failed to open file: %v", err)
+	}
+	defer file.Close()
+	decoder := json.NewDecoder(file)
+
+	_, err = decoder.Token()
+	if err != nil {
+		die("Failed to read JSON token: %v", err)
+	}
+
+	// First pass: Count quotes that meet the length threshold
+	var matchingQuotes []int
+	index := 0
+	for decoder.More() {
+		var quote MonkeytypeQuote
+		err := decoder.Decode(&quote)
 		if err != nil {
-			die("Improperly formatted quote file: %v", err)
+			die("Error decoding quote: %v", err)
 		}
+
+		// Collect the index of quotes that meet the length threshold
+		if quote.Length >= lengthThreshold {
+			matchingQuotes = append(matchingQuotes, index)
+		}
+		index++
 	}
 
-	return func() []segment {
-		idx := rand.Int() % len(quotes)
-		return quotes[idx : idx+1]
+	// If no quotes meet the length threshold, handle it
+	if len(matchingQuotes) == 0 {
+		die("No quote found with length over %d.", lengthThreshold)
 	}
+	randomIndex := matchingQuotes[rand.Intn(len(matchingQuotes))]
+	_, err = file.Seek(0, 0) // Reset file reader to the beginning
+	if err != nil {
+		die("Unable to reset file: %v", err)
+	}
+	decoder = json.NewDecoder(file)
+
+	// Read the opening bracket again
+	_, err = decoder.Token() // Skip the '[' again
+	if err != nil {
+		die("Improperly formatted quote file: %v", err)
+	}
+
+	// Iterate to the randomIndex
+	index = 0
+	for decoder.More() {
+		var quote MonkeytypeQuote
+		err := decoder.Decode(&quote)
+		if err != nil {
+			die("Error decoding quote: %v", err)
+		}
+
+		if index == randomIndex {
+			return func() []segment {
+				return []segment{{quote.Text, quote.Source}}
+			}
+		}
+		index++
+	}
+
+	// If something goes wrong, return an empty quote
+	die("Error: Could not retrieve random quote.")
+	return nil
 }
 
 // getQuote returns a random quote and its author from the API
-func getQuoteTest(length int) func() []segment {
+func getWebQuoteTest(length int) func() []segment {
 	if length > 430 {
 		length = 430
 	}

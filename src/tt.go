@@ -250,7 +250,7 @@ func main() {
 	var listFlag string
 	var wordFile string
 	var quoteFile string
-	var randomQuote bool
+	var webQuote bool
 	var randomWord bool
 
 	var themeName string
@@ -273,7 +273,7 @@ func main() {
 
 	flag.StringVar(&wordFile, "words", "", "")
 	flag.StringVar(&quoteFile, "quotes", "", "")
-	flag.BoolVar(&randomQuote, "randomquote", false, "")
+	flag.BoolVar(&webQuote, "webquote", false, "")
 	flag.BoolVar(&randomWord, "randomword", false, "")
 
 	flag.BoolVar(&showWpm, "showwpm", false, "")
@@ -336,13 +336,13 @@ func main() {
 	case wordFile != "":
 		testFn = generateWordTest(wordFile, n, g)
 	case quoteFile == "":
-		testFn = getQuoteTest(n)
+		testFn = getWebQuoteTest(n)
 	case randomWord:
 		if !checkNetworkConnectivity() {
 			die("this mode require network connectivity, use another mode or check your connection and try again.")
 		}
 		testFn = getWordTest(n)
-	case randomQuote:
+	case webQuote:
 		if !checkNetworkConnectivity() {
 			die("this mode require network connectivity, use another mode or check your connection and try again.")
 		}
