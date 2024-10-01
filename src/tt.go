@@ -250,6 +250,8 @@ func main() {
 	var listFlag string
 	var wordFile string
 	var quoteFile string
+	var quoteMode bool
+
 	var webQuote bool
 	var randomWord bool
 
@@ -273,6 +275,7 @@ func main() {
 
 	flag.StringVar(&wordFile, "words", "", "")
 	flag.StringVar(&quoteFile, "quotes", "", "")
+	flag.BoolVar(&quoteMode, "quote", false, "")
 	flag.BoolVar(&webQuote, "webquote", false, "")
 	flag.BoolVar(&randomWord, "randomword", false, "")
 
@@ -335,8 +338,10 @@ func main() {
 	switch {
 	case wordFile != "":
 		testFn = generateWordTest(wordFile, n, g)
-	case quoteFile == "":
-		testFn = getWebQuoteTest(n)
+	case quoteFile != "":
+		testFn = generateQuoteTest(quoteFile, n)
+	case quoteMode:
+		testFn = generateQuoteTest("en", n)
 	case randomWord:
 		if !checkNetworkConnectivity() {
 			die("this mode require network connectivity, use another mode or check your connection and try again.")
@@ -346,7 +351,7 @@ func main() {
 		if !checkNetworkConnectivity() {
 			die("this mode require network connectivity, use another mode or check your connection and try again.")
 		}
-		testFn = generateQuoteTest(quoteFile)
+		testFn = getWebQuoteTest(n)
 	case !isatty.IsTerminal(os.Stdin.Fd()):
 		b, err := io.ReadAll(os.Stdin)
 		if err != nil {
