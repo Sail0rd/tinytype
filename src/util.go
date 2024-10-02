@@ -222,24 +222,6 @@ func readResource(typ, name string) []byte {
 	return readPackedFile(filepath.Join(typ, name))
 }
 
-func openResource(typ, name string) *os.File {
-	if name == "-" {
-		return os.Stdin
-	}
-
-	if f, err := os.Open(name); err == nil {
-		return f
-	}
-
-	for _, d := range CONFIG_DIRS {
-		if f, err := os.Open(filepath.Join(d, typ, name)); err == nil {
-			return f
-		}
-	}
-
-	return nil
-}
-
 func checkNetworkConnectivity() bool {
 	_, err := http.Get("http://www.google.com")
 	return err == nil

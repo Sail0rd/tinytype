@@ -22,29 +22,24 @@ type MonkeytypeQuote struct {
 }
 
 func generateQuoteTest(name string, lengthThreshold int) func() []segment {
-	file := openResource("quotes", name)
-	decoder := json.NewDecoder(file)
+	var monkeytypequotes []MonkeytypeQuote
 
-	_, err := decoder.Token()
-	if err != nil {
-		die("Failed to read JSON token: %v", err)
+	if b := readResource("quotes", name); b == nil {
+		die("%s does not appear to be a valid quote file. See '-list quotes' for a list of builtin quotes.", name)
+	} else {
+		err := json.Unmarshal(b, &monkeytypequotes)
+		if err != nil {
+			die("Improperly formatted quote file: %v", err)
+		}
 	}
 
 	// Get quotes that meet the length threshold
 	var quotes []segment
-	index := 0
-	for decoder.More() {
-		var quote MonkeytypeQuote
-		err := decoder.Decode(&quote)
-		if err != nil {
-			die("Error decoding quote: %v", err)
-		}
-
+	for _, quote := range monkeytypequotes {
 		// Collect the index of quotes that meet the length threshold
 		if quote.Length >= lengthThreshold {
 			quotes = append(quotes, segment{quote.Text, quote.Source})
 		}
-		index++
 	}
 
 	// If no quotes meet the length threshold, handle it
