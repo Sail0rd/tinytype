@@ -164,6 +164,8 @@ func createTyper(scr tcell.Screen, bold bool, themeName string) *typer {
 var usage = `usage: tt [options] [file]
 
 Modes
+    -randomquote        Fetch a random quote from the web and start a test.
+    -randomword         Fetch a random word from the web and start a test.
     -words  WORDFILE    Specifies the file from which words are randomly
                         drawn (default: 1000en).
     -quotes QUOTEFILE   Starts quote mode in which quotes are randomly drawn
@@ -171,8 +173,6 @@ Modes
                         have the following form:
 
                         [{"text": "foo", attribution: "bar"}]
-	-randomquote        Fetch a random quote from the web and start a test.
-	-randomword         Fetch a random word from the web and start a test.
 
 Word Mode
     -n GROUPSZ          Sets the number of words which constitute a group.
@@ -184,9 +184,9 @@ File Mode
 Aesthetics
     -showwpm            Display WPM whilst typing.
     -theme THEMEFILE    The theme to use.
-    -w                  The maximum line length in characters. This option is 
-    -notheme            Attempt to use the default terminal theme. 
-                        This may produce odd results depending 
+    -w                  The maximum line length in characters. This option is
+    -notheme            Attempt to use the default terminal theme.
+                        This may produce odd results depending
                         on the theme colours.
     -blockcursor        Use the default cursor style.
     -bold               Embolden typed text.
