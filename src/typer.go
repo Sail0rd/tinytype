@@ -36,6 +36,7 @@ type typer struct {
 	OnStart          func()
 	SkipWord         bool
 	ShowWpm          bool
+	ShowTyped        bool
 	DisableBackspace bool
 	BlockCursor      bool
 	tty              io.Writer
@@ -45,10 +46,11 @@ type typer struct {
 	incorrectSpaceStyle tcell.Style
 	incorrectStyle      tcell.Style
 	correctStyle        tcell.Style
+	correctedStyle      tcell.Style
 	defaultStyle        tcell.Style
 }
 
-func NewTyper(scr tcell.Screen, emboldenTypedText bool, fgcol, bgcol, hicol, hicol2, hicol3, errcol tcell.Color) *typer {
+func NewTyper(scr tcell.Screen, emboldenTypedText bool, fgcol, bgcol, hicol, hicol2, hicol3, errcol, correctedcol tcell.Color) *typer {
 	var tty io.Writer
 	def := tcell.StyleDefault.
 		Foreground(fgcol).
@@ -72,6 +74,7 @@ func NewTyper(scr tcell.Screen, emboldenTypedText bool, fgcol, bgcol, hicol, hic
 
 		defaultStyle:        def,
 		correctStyle:        correctStyle,
+		correctedStyle:      def.Foreground(correctedcol),
 		currentWordStyle:    def.Foreground(hicol2),
 		nextWordStyle:       def.Foreground(hicol3),
 		incorrectStyle:      def.Foreground(errcol),
@@ -79,23 +82,25 @@ func NewTyper(scr tcell.Screen, emboldenTypedText bool, fgcol, bgcol, hicol, hic
 	}
 }
 
-func (t *typer) Start(text []segment, timeout time.Duration) (nerrs, ncorrect int, duration time.Duration, rc int, mistakes []mistake) {
+func (t *typer) Start(text []segment, timeout time.Duration) (nerrs, ncorrect, nkeystrokes, ntypos int, duration time.Duration, rc int, mistakes []mistake) {
 	timeLeft := timeout
 
 	for i, s := range text {
 		startImmediately := true
 		var d time.Duration
-		var e, c int
+		var e, c, k, tp int
 		var m []mistake
 
 		if i == 0 {
 			startImmediately = false
 		}
 
-		e, c, rc, d, m = t.start(s.Text, timeLeft, startImmediately, s.Attribution)
+		e, c, k, tp, rc, d, m = t.start(s.Text, timeLeft, startImmediately, s.Attribution)
 
 		nerrs += e
 		ncorrect += c
+		nkeystrokes += k
+		ntypos += tp
 		duration += d
 		mistakes = append(mistakes, m...)
 
@@ -155,10 +160,14 @@ func extractMistypedWords(text []rune, typed []rune) (mistakes []mistake) {
 	return
 }
 
-func (t *typer) start(s string, timeLimit time.Duration, startImmediately bool, attribution string) (nerrs int, ncorrect int, rc int, duration time.Duration, mistakes []mistake) {
+func (t *typer) start(s string, timeLimit time.Duration, startImmediately bool, attribution string) (nerrs int, ncorrect int, nkeystrokes int, ntypos int, rc int, duration time.Duration, mistakes []mistake) {
 	var startTime time.Time
 	text := []rune(s)
 	typed := make([]rune, len(text))
+
+	//Tracks, per position, whether a wrong character was ever entered there
+	//(even if subsequently corrected) so it can be highlighted differently.
+	mistyped := make([]bool, len(text))
 
 	sw, sh := scr.Size()
 	nc, nr := calcStringDimensions(s)
@@ -203,6 +212,7 @@ func (t *typer) start(s string, timeLimit time.Duration, startImmediately bool, 
 
 		for i := range text {
 			style := t.defaultStyle
+			dispRune := text[i]
 
 			if text[i] == '\n' {
 				cy++
@@ -233,12 +243,21 @@ func (t *typer) start(s string, timeLimit time.Duration, startImmediately bool, 
 					style = t.incorrectSpaceStyle
 				} else {
 					style = t.incorrectStyle
+
+					//Optionally reveal the wrong character the user actually
+					//typed instead of the expected one.
+					if t.ShowTyped && typed[i] != 0 {
+						dispRune = typed[i]
+					}
 				}
+			} else if mistyped[i] {
+				//Correctly typed now, but was wrong at some point.
+				style = t.correctedStyle
 			} else {
 				style = t.correctStyle
 			}
 
-			scr.SetContent(cx, cy, text[i], nil, style)
+			scr.SetContent(cx, cy, dispRune, nil, style)
 			cx++
 		}
 
@@ -356,20 +375,10 @@ func (t *typer) start(s string, timeLimit time.Duration, startImmediately bool, 
 				}
 
 			case tcell.KeyBackspace, tcell.KeyBackspace2:
+				//Backspace deletes the whole word rather than a single
+				//character.
 				if !t.DisableBackspace {
-					if ev.Modifiers() == tcell.ModAlt || ev.Modifiers() == tcell.ModCtrl {
-						deleteWord()
-					} else {
-						if idx == 0 {
-							break
-						}
-
-						idx--
-
-						for idx > 0 && text[idx] == '\n' {
-							idx--
-						}
-					}
+					deleteWord()
 				}
 			case tcell.KeyRune:
 				if idx < len(text) {
@@ -380,6 +389,10 @@ func (t *typer) start(s string, timeLimit time.Duration, startImmediately bool, 
 
 						for idx < len(text) && text[idx] != ' ' && text[idx] != '\n' {
 							typed[idx] = 0
+							//Skipped characters count as mistakes for the
+							//purposes of real accuracy.
+							nkeystrokes++
+							ntypos++
 							idx++
 						}
 
@@ -389,6 +402,11 @@ func (t *typer) start(s string, timeLimit time.Duration, startImmediately bool, 
 						}
 					} else {
 						typed[idx] = ev.Rune()
+						nkeystrokes++
+						if ev.Rune() != text[idx] {
+							ntypos++
+							mistyped[idx] = true
+						}
 						idx++
 					}
 

@@ -21,11 +21,12 @@ var csvMode bool
 var jsonMode bool
 
 type result struct {
-	Wpm       int       `json:"wpm"`
-	Cpm       int       `json:"cpm"`
-	Accuracy  float64   `json:"accuracy"`
-	Timestamp int64     `json:"timestamp"`
-	Mistakes  []mistake `json:"mistakes"`
+	Wpm          int       `json:"wpm"`
+	Cpm          int       `json:"cpm"`
+	Accuracy     float64   `json:"accuracy"`
+	RealAccuracy float64   `json:"real_accuracy"`
+	Timestamp    int64     `json:"timestamp"`
+	Mistakes     []mistake `json:"mistakes"`
 }
 
 func die(format string, args ...interface{}) {
@@ -76,7 +77,7 @@ func exit(rc int) {
 
 	if csvMode {
 		for _, r := range results {
-			fmt.Printf("test,%d,%d,%.2f,%d\n", r.Wpm, r.Cpm, r.Accuracy, r.Timestamp)
+			fmt.Printf("test,%d,%d,%.2f,%.2f,%d\n", r.Wpm, r.Cpm, r.Accuracy, r.RealAccuracy, r.Timestamp)
 			for _, m := range r.Mistakes {
 				fmt.Printf("mistake,%s,%s\n", m.Word, m.Typed)
 			}
@@ -86,14 +87,14 @@ func exit(rc int) {
 	os.Exit(rc)
 }
 
-func showReport(scr tcell.Screen, cpm, wpm int, accuracy float64, attribution string, mistakes []mistake) {
+func showReport(scr tcell.Screen, cpm, wpm int, accuracy, realAccuracy float64, attribution string, mistakes []mistake) {
 	mistakeStr := ""
 	if attribution != "" {
 		attribution = "\n\nAttribution: " + attribution
 	}
 
 	if len(mistakes) > 0 {
-		mistakeStr = "\nMistakes:    "
+		mistakeStr = "\nMistakes:      "
 		for i, m := range mistakes {
 			mistakeStr += m.Word
 			if i != len(mistakes)-1 {
@@ -102,7 +103,7 @@ func showReport(scr tcell.Screen, cpm, wpm int, accuracy float64, attribution st
 		}
 	}
 
-	report := fmt.Sprintf("WPM:         %d\nCPM:         %d\nAccuracy:    %.2f%%%s%s", wpm, cpm, accuracy, mistakeStr, attribution)
+	report := fmt.Sprintf("WPM:           %d\nCPM:           %d\nAccuracy:      %.2f%%\nReal accuracy: %.2f%%%s%s", wpm, cpm, accuracy, realAccuracy, mistakeStr, attribution)
 
 	scr.Clear()
 	drawStringAtCenter(scr, report, tcell.StyleDefault)
@@ -124,41 +125,52 @@ func createDefaultTyper(scr tcell.Screen) *typer {
 		tcell.ColorWhite,
 		tcell.ColorGreen,
 		tcell.ColorGreen,
-		tcell.ColorMaroon)
+		tcell.ColorMaroon,
+		tcell.ColorYellow)
 }
 
 func createTyper(scr tcell.Screen, bold bool, themeName string) *typer {
 	var theme map[string]string
 
 	if b := readResource("themes", themeName); b == nil {
-		die("%s does not appear to be a valid theme, try '-list themes' for a list of built in thems.", themeName)
+		die("'%s' is not a valid theme. Run 'tt -list themes' to see the built-in themes, or pass a path to your own theme file.", themeName)
 	} else {
 		theme = parseConfig(b)
 	}
 
-	var bgcol, fgcol, hicol, hicol2, hicol3, errcol tcell.Color
+	var bgcol, fgcol, hicol, hicol2, hicol3, errcol, correctedcol tcell.Color
 	var err error
 
-	if bgcol, err = newTcellColor(theme["bgcol"]); err != nil {
-		die("bgcol is not defined and/or a valid hex colour.")
-	}
-	if fgcol, err = newTcellColor(theme["fgcol"]); err != nil {
-		die("fgcol is not defined and/or a valid hex colour.")
-	}
-	if hicol, err = newTcellColor(theme["hicol"]); err != nil {
-		die("hicol is not defined and/or a valid hex colour.")
-	}
-	if hicol2, err = newTcellColor(theme["hicol2"]); err != nil {
-		die("hicol2 is not defined and/or a valid hex colour.")
-	}
-	if hicol3, err = newTcellColor(theme["hicol3"]); err != nil {
-		die("hicol3 is not defined and/or a valid hex colour.")
-	}
-	if errcol, err = newTcellColor(theme["errcol"]); err != nil {
-		die("errcol is not defined and/or a valid hex colour.")
+	colErr := func(key string) {
+		die("theme '%s': '%s' is missing or not a valid hex colour (expected the form #rrggbb, e.g. #ff8800).", themeName, key)
 	}
 
-	return NewTyper(scr, bold, fgcol, bgcol, hicol, hicol2, hicol3, errcol)
+	if bgcol, err = newTcellColor(theme["bgcol"]); err != nil {
+		colErr("bgcol")
+	}
+	if fgcol, err = newTcellColor(theme["fgcol"]); err != nil {
+		colErr("fgcol")
+	}
+	if hicol, err = newTcellColor(theme["hicol"]); err != nil {
+		colErr("hicol")
+	}
+	if hicol2, err = newTcellColor(theme["hicol2"]); err != nil {
+		colErr("hicol2")
+	}
+	if hicol3, err = newTcellColor(theme["hicol3"]); err != nil {
+		colErr("hicol3")
+	}
+	if errcol, err = newTcellColor(theme["errcol"]); err != nil {
+		colErr("errcol")
+	}
+
+	//correctedcol is optional; fall back to a sensible default so existing
+	//themes keep working without modification.
+	if correctedcol, err = newTcellColor(theme["correctedcol"]); err != nil {
+		correctedcol = tcell.ColorYellow
+	}
+
+	return NewTyper(scr, bold, fgcol, bgcol, hicol, hicol2, hicol3, errcol, correctedcol)
 }
 
 var usage = `usage: tt [options] [file]
@@ -183,6 +195,9 @@ File Mode
                         reset progress on a given file.
 Aesthetics
     -showwpm            Display WPM whilst typing.
+    -showtyped          When a character is typed incorrectly, display the
+                        character that was actually typed instead of the
+                        expected one.
     -theme THEMEFILE    The theme to use.
     -w                  The maximum line length in characters. This option is
     -notheme            Attempt to use the default terminal theme.
@@ -194,7 +209,8 @@ Aesthetics
 Test Parameters
     -t SECONDS          Terminate the test after the given number of seconds.
     -noskip             Disable word skipping when space is pressed.
-    -nobackspace        Disable the backspace key.
+    -nobackspace        Disable the backspace key. Note that backspace deletes
+                        the whole previous word rather than a single character.
     -nohighlight        Disable current and next word highlighting.
     -highlight1         Only highlight the current word.
     -highlight2         Only highlight the next word.
@@ -203,7 +219,7 @@ Scripting
     -oneshot            Automatically exit after a single run.
     -noreport           Don't show a report at the end of a test.
     -csv                Print the test results to stdout in the form:
-                        [type],[wpm],[cpm],[accuracy],[timestamp].
+                        [type],[wpm],[cpm],[accuracy],[realaccuracy],[timestamp].
     -json               Print the test output in JSON.
     -raw                Don't reflow STDIN text or show one paragraph at a time.
                         Note that line breaks are determined exclusively by the
@@ -257,6 +273,7 @@ func main() {
 
 	var themeName string
 	var showWpm bool
+	var showTyped bool
 	var multiMode bool
 	var versionFlag bool
 	var boldFlag bool
@@ -280,6 +297,7 @@ func main() {
 	flag.BoolVar(&randomWord, "randomword", false, "")
 
 	flag.BoolVar(&showWpm, "showwpm", false, "")
+	flag.BoolVar(&showTyped, "showtyped", false, "")
 	flag.BoolVar(&noSkip, "noskip", false, "")
 	flag.BoolVar(&normalCursor, "blockcursor", false, "")
 	flag.BoolVar(&noBackspace, "nobackspace", false, "")
@@ -344,12 +362,12 @@ func main() {
 		testFn = generateQuoteTest("en", n)
 	case randomWord:
 		if !checkNetworkConnectivity() {
-			die("this mode require network connectivity, use another mode or check your connection and try again.")
+			die("this mode requires network connectivity. Check your internet connection and try again, or use an offline mode (e.g. the default word mode or -quotes).")
 		}
 		testFn = getWordTest(n)
 	case webQuote:
 		if !checkNetworkConnectivity() {
-			die("this mode require network connectivity, use another mode or check your connection and try again.")
+			die("this mode requires network connectivity. Check your internet connection and try again, or use an offline mode (e.g. the default word mode or -quotes).")
 		}
 		testFn = getWebQuoteTest(n)
 	case !isatty.IsTerminal(os.Stdin.Fd()):
@@ -402,6 +420,7 @@ func main() {
 	typer.DisableBackspace = noBackspace
 	typer.BlockCursor = normalCursor
 	typer.ShowWpm = showWpm
+	typer.ShowTyped = showTyped
 
 	if timeout != -1 {
 		timeout *= 1e9
@@ -425,7 +444,7 @@ func main() {
 			}
 		}
 
-		nerrs, ncorrect, t, rc, mistakes := typer.Start(tests[idx], time.Duration(timeout))
+		nerrs, ncorrect, nkeystrokes, ntypos, t, rc, mistakes := typer.Start(tests[idx], time.Duration(timeout))
 		saveMistakes(mistakes)
 
 		switch rc {
@@ -438,15 +457,27 @@ func main() {
 		case TyperComplete:
 			cpm := int(float64(ncorrect) / (float64(t) / 60e9))
 			wpm := cpm / 5
-			accuracy := float64(ncorrect) / float64(nerrs+ncorrect) * 100
 
-			results = append(results, result{wpm, cpm, accuracy, time.Now().Unix(), mistakes})
+			//Accuracy reflects the final state of the text.
+			accuracy := 100.0
+			if nerrs+ncorrect > 0 {
+				accuracy = float64(ncorrect) / float64(nerrs+ncorrect) * 100
+			}
+
+			//Real accuracy accounts for every mistake made, including ones
+			//that were later corrected.
+			realAccuracy := 100.0
+			if nkeystrokes > 0 {
+				realAccuracy = float64(nkeystrokes-ntypos) / float64(nkeystrokes) * 100
+			}
+
+			results = append(results, result{wpm, cpm, accuracy, realAccuracy, time.Now().Unix(), mistakes})
 			if !noReport {
 				attribution := ""
 				if len(tests[idx]) == 1 {
 					attribution = tests[idx][0].Attribution
 				}
-				showReport(scr, cpm, wpm, accuracy, attribution, mistakes)
+				showReport(scr, cpm, wpm, accuracy, realAccuracy, attribution, mistakes)
 			}
 			if oneShotMode {
 				exit(0)

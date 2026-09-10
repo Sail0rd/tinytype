@@ -1,3 +1,13 @@
+# Unreleased
+
+- Backspace now deletes the whole previous word instead of a single character.
+- Added -showtyped to reveal the character actually typed on a mistake.
+- Characters that were mistyped and then corrected are now highlighted with a
+  distinct colour (configurable via the optional `correctedcol` theme key).
+- The report and CSV/JSON output now include a "real accuracy" that accounts for
+  every mistake made, including corrected ones.
+- Clearer, more actionable error messages.
+
 # 0.4.3
 
 Added -randomquote and -randomword

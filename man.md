@@ -56,6 +56,10 @@ usage: tt \[OPTION\]... \[FILE\]
 
 : Display WPM whilst typing.
 
+-showtyped
+
+: When a character is typed incorrectly, display the character that was actually typed instead of the expected one.
+
 -theme *THEMEFILE*
 
 : The theme to use. 
@@ -115,7 +119,7 @@ usage: tt \[OPTION\]... \[FILE\]
 	Tests have the form:
 
 	```
-	test,[wpm],[cpm],[accuracy],[timestamp].
+	test,[wpm],[cpm],[accuracy],[realaccuracy],[timestamp].
 	```
 
 	Mistakes have the form:
@@ -204,6 +208,7 @@ Modify to taste.
 
   **esc: ** Restarts the test\
   **C-c: ** Terminates tt\
+  **backspace: ** Deletes the previous word\
   **C-backspace: ** Deletes the previous word\
   **right** Move to the next test.\
   **left** Move to the previous test.
