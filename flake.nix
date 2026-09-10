@@ -28,9 +28,9 @@
         inherit version;
         src = ./.;
 
-        vendorHash = "sha256-iny0OKInHqoXzYcEtd4f0T/yty5/z3k3yFbDo5yazes=";
+        vendorHash = "sha256-M++yxR48UXTrv0D7RVm+u03MEFUeDECOc4ung7T0YM4=";
 
-        buildInputs = with pkgs; [go_1_23];
+        buildInputs = with pkgs; [go_1_26];
 
         postInstall = ''
           mv $out/bin/src $out/bin/tt
@@ -43,7 +43,7 @@
       pkgs = nixpkgsFor.${system};
     in {
       default = pkgs.mkShell {
-        buildInputs = with pkgs; [go_1_23];
+        buildInputs = with pkgs; [go_1_26];
       };
     });
 
